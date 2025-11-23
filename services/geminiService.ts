@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { CarDetails, ValuationResult, GroundingChunk } from "../types";
+import { sanitizeHistoricalData } from "../utils/dataSanitizer";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -11,6 +12,13 @@ export const analyzeCarValue = async (
   historyContext: string
 ): Promise<ValuationResult> => {
   const modelId = "gemini-2.5-flash";
+
+  // SECURITY: Sanitize historical data before sending to API
+  // This protects proprietary P&L information by sending only insights, not raw data
+  const sanitizedHistory = sanitizeHistoricalData(historyContext, {
+    brand: car.brand,
+    model: car.model
+  });
 
   const prompt = `
     You are an expert used car valuator specifically for the **Indian Automotive Market**.
@@ -30,10 +38,8 @@ export const analyzeCarValue = async (
        - Consider the Fuel type (${car.fuel}) and Location (${car.location}) demand.
 
     3. **Historical Data Integration**:
-       I have provided my past sales data below (CSV format). 
-       Check if I have bought/sold similar cars (e.g. same Brand/Model).
-       If I have a history of high margins on this model, be more aggressive.
-       If I have data, mention: "Based on your past purchase of [Similar Car]..."
+       ${sanitizedHistory}
+       Use these insights to inform your recommendation, but rely primarily on current market data.
     
     INPUT CAR DETAILS:
     - Brand: ${car.brand}
@@ -45,9 +51,6 @@ export const analyzeCarValue = async (
     - Ownership: ${car.ownership}
     - Driven: ${car.kmDriven} km
     - Location: ${car.location} (India)
-
-    MY SALES HISTORY (CSV):
-    ${historyContext || "No historical data connected."}
 
     OUTPUT FORMAT:
     - Provide a detailed reasoning referencing specific Indian market trends.

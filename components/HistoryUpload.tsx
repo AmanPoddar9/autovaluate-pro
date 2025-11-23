@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, FileText, Link, Check, AlertCircle } from 'lucide-react';
+import { Database, FileText, Link, Check, AlertCircle, Shield, Trash2 } from 'lucide-react';
 
 interface HistoryUploadProps {
   onDataChange: (data: string) => void;
@@ -59,6 +59,18 @@ Honda,City,2017,600000,680000`;
 
       {isExpanded && (
         <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          {/* Privacy Warning */}
+          <div className="bg-green-50 border border-green-200 p-3 rounded-lg mb-4">
+            <div className="flex items-start">
+              <Shield className="w-4 h-4 text-green-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-green-800 leading-relaxed">
+                  <strong>Privacy Protected:</strong> Your P&L data is encrypted locally and never stored on servers. 
+                  We only send anonymized insights (not raw prices/margins) to the AI for analysis.
+                </p>
+              </div>
+            </div>
+          </div>
           
           <div className="flex space-x-4 border-b border-gray-200 mb-4">
             <button 
@@ -136,9 +148,26 @@ Honda,City,2017,600000,680000`;
             </div>
           )}
           
-          <p className="text-xs text-right text-gray-400 mt-2">
-            {data.length > 0 && activeTab === 'paste' ? `${data.split('\n').length} rows detected` : ''}
-          </p>
+          {/* Data Status and Clear Button */}
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-xs text-gray-400">
+              {data.length > 0 ? `${data.split('\n').length} rows loaded` : 'No data loaded'}
+            </p>
+            {data.length > 0 && (
+              <button
+                onClick={() => {
+                  setData('');
+                  onDataChange('');
+                  setSheetUrl('');
+                  setFetchStatus('idle');
+                }}
+                className="flex items-center space-x-1 text-xs text-red-600 hover:text-red-700 font-medium"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Clear Data</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -3,14 +3,45 @@ import { CarDetails, ValuationResult } from './types';
 import CarForm from './components/CarForm';
 import HistoryUpload from './components/HistoryUpload';
 import ValuationResultView from './components/ValuationResult';
+import AuthGate from './components/AuthGate';
 import { analyzeCarValue } from './services/geminiService';
-import { Zap } from 'lucide-react';
+import { clearSecureData } from './utils/encryption';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
+import { Zap, AlertTriangle, Clock } from 'lucide-react';
 
 export default function App() {
   const [historyData, setHistoryData] = useState<string>('');
   const [valuationResult, setValuationResult] = useState<ValuationResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+
+  const handleLogout = () => {
+    // Clear all sensitive data
+    setHistoryData('');
+    setValuationResult(null);
+    setError(null);
+    clearSecureData();
+  };
+
+  const handleTimeout = () => {
+    handleLogout();
+    alert('Session expired due to inactivity. Please login again.');
+    window.location.reload();
+  };
+
+  const handleTimeoutWarning = () => {
+    setShowTimeoutWarning(true);
+    setTimeout(() => setShowTimeoutWarning(false), 10000); // Hide after 10 seconds
+  };
+
+  // Session timeout: 15 minutes with 2-minute warning
+  useSessionTimeout({
+    timeoutMinutes: 15,
+    warningMinutes: 2,
+    onTimeout: handleTimeout,
+    onWarning: handleTimeoutWarning,
+  });
 
   const handleAnalyze = async (carData: CarDetails) => {
     setIsLoading(true);
@@ -27,12 +58,23 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen pb-12">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="bg-orange-600 p-1.5 rounded-lg">
+    <AuthGate onLogout={handleLogout}>
+      <div className="min-h-screen pb-12">
+        {/* Timeout Warning */}
+        {showTimeoutWarning && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-in slide-in-from-top">
+            <div className="bg-amber-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3">
+              <Clock className="w-5 h-5" />
+              <span className="font-medium">Session will expire in 2 minutes due to inactivity</span>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="bg-orange-600 p-1.5 rounded-lg">
                <Zap className="w-5 h-5 text-white" fill="currentColor" />
             </div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
@@ -46,6 +88,21 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        {/* Security Notice */}
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg">
+          <div className="flex items-start">
+            <AlertTriangle className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-bold text-blue-800 mb-1">Data Privacy & Security</h3>
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Your business data is encrypted and protected. We only send anonymized insights to the AI 
+                (not raw prices/margins). All data is cleared when you logout or close your browser. 
+                Session auto-expires after 15 minutes of inactivity.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Left Column: Input */}
@@ -106,5 +163,6 @@ export default function App() {
         </div>
       </main>
     </div>
+    </AuthGate>
   );
 }
