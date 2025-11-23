@@ -179,11 +179,11 @@ export function sanitizeHistoricalData(csvData: string, targetCar: { brand: stri
     insights.push(`${exactMatch.brandModel}: ${exactMatch.count} transactions, ${exactMatch.avgMargin.toFixed(1)}% avg margin.`);
     
     if (exactMatch.avgMargin > 15) {
-      insights.push(`Highly profitable model.`);
+      insights.push(`Historically profitable, but ensure buy price allows for >15% margin.`);
     } else if (exactMatch.avgMargin > 8) {
-      insights.push(`Moderate profitability.`);
+      insights.push(`Moderate past profitability. Bid conservatively to improve margins.`);
     } else {
-      insights.push(`Lower margin model.`);
+      insights.push(`Low margin model historically. STRICT pricing required.`);
     }
     
     if (exactMatch.years.length > 0) {

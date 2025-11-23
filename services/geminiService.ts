@@ -32,18 +32,24 @@ export const analyzeCarValue = async (
   const estimatedTokens = estimateTokens(sanitizedHistory);
   console.log(`📊 Estimated tokens for historical data: ${estimatedTokens}`);
 
-  // OPTIMIZED PROMPT: Reduced from ~800 tokens to ~300 tokens
-  const prompt = `You are a used car valuator for the Indian market.
+  // OPTIMIZED PROMPT: Reduced tokens + STRICTER VALUATION LOGIC
+  const prompt = `You are a TOUGH, CONSERVATIVE used car buyer for a dealership in India.
 
-TASK: Provide a dealer buying price range for this car.
+TASK: Determine the SAFE DEALER BUYING PRICE. Your goal is to protect the dealer's profit.
+It is better to quote TOO LOW than too high.
 
-SEARCH: Find current listings on CarWale, CarDekho, Spinny, OLX Autos for this specific car in India. Get the original ex-showroom price for ${car.year}.
+SEARCH STRATEGY:
+1. Find the LOWEST listed prices for this car on CarWale, CarDekho, OLX.
+2. Assume actual transaction prices are 5-10% LOWER than online listings.
 
-ANALYSIS:
-- Find market selling prices
-- Subtract dealer margin (10-15%) + refurb costs = dealer buy price
-- Adjust for: ${car.kmDriven} km driven, ${car.ownership} ownership
-- Consider: ${car.fuel} fuel, ${car.location} location demand
+VALUATION FORMULA (Apply Strictly):
+1. Start with the estimated Market Transaction Price (not asking price).
+2. DEDUCT Dealer Margin: MINIMUM 15-20% (for profit + risk).
+3. DEDUCT Refurbishment: MINIMUM ₹15,000 - ₹25,000 (tires, paint, service).
+4. DEDUCT Ownership Penalty:
+   - 2nd Owner: -10%
+   - 3rd Owner: -20%
+5. DEDUCT Mileage Penalty: If >15k km/year, deduct extra.
 
 HISTORICAL CONTEXT:
 ${sanitizedHistory}
@@ -54,8 +60,9 @@ Year: ${car.year} | Fuel: ${car.fuel} | Transmission: ${car.transmission}
 Ownership: ${car.ownership} | KM: ${car.kmDriven} | Location: ${car.location}
 
 OUTPUT:
-Provide detailed reasoning with Indian market trends.
-End with EXACT JSON: ||VALUATION_DATA|{"min": 500000, "max": 550000, "currency": "INR", "originalMsrp": "₹9.5L (Ex-Showroom 2018)"}||
+- Explain your calculation: "Listing price ₹X, minus 10% negotiation = ₹Y. Minus 15% margin = ₹Z. Minus ₹20k work..."
+- Be direct and conservative.
+- End with EXACT JSON: ||VALUATION_DATA|{"min": 400000, "max": 425000, "currency": "INR", "originalMsrp": "₹9.5L (Ex-Showroom 2018)"}||
 
 Note: Currency=INR, use Lakhs/Crores in text, JSON numbers as integers.`;
 
