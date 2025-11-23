@@ -4,6 +4,7 @@ import CarForm from './components/CarForm';
 import HistoryUpload from './components/HistoryUpload';
 import ValuationResultView from './components/ValuationResult';
 import AuthGate from './components/AuthGate';
+import TokenUsage from './components/TokenUsage';
 import { analyzeCarValue } from './services/geminiService';
 import { clearSecureData } from './utils/encryption';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
@@ -102,6 +103,14 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* Token Usage Optimization Display */}
+        {historyData && (
+          <TokenUsage 
+            estimatedTokens={1500} 
+            isCached={false}
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           

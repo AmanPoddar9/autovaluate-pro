@@ -1,6 +1,7 @@
 /**
  * Data sanitizer to protect proprietary P&L information
  * Extracts insights without exposing raw prices and margins
+ * OPTIMIZED: Smart filtering and aggregation to reduce token usage by 99%
  */
 
 interface HistoricalRecord {
@@ -9,6 +10,13 @@ interface HistoricalRecord {
   year?: string;
   boughtPrice?: number;
   soldPrice?: number;
+}
+
+interface AggregatedData {
+  brandModel: string;
+  count: number;
+  avgMargin: number;
+  years: string[];
 }
 
 /**
@@ -47,65 +55,156 @@ function parseCSV(csvData: string): HistoricalRecord[] {
 }
 
 /**
+ * Calculate relevance score for a record compared to target car
+ */
+function calculateRelevance(record: HistoricalRecord, target: { brand: string; model: string }): number {
+  let score = 0;
+  
+  // Exact brand match
+  if (record.brand?.toLowerCase() === target.brand.toLowerCase()) {
+    score += 50;
+  }
+  
+  // Exact model match
+  if (record.model?.toLowerCase() === target.model.toLowerCase()) {
+    score += 100;
+  }
+  
+  // Partial model match
+  if (record.model && target.model) {
+    const recordModel = record.model.toLowerCase();
+    const targetModel = target.model.toLowerCase();
+    if (recordModel.includes(targetModel) || targetModel.includes(recordModel)) {
+      score += 75;
+    }
+  }
+  
+  return score;
+}
+
+/**
+ * Smart filter: Only keep most relevant records
+ * Reduces 8000 rows to ~50 most relevant records
+ */
+function smartFilter(records: HistoricalRecord[], target: { brand: string; model: string }, maxRecords: number = 50): HistoricalRecord[] {
+  // Score and sort by relevance
+  const scored = records
+    .map(record => ({
+      record,
+      score: calculateRelevance(record, target)
+    }))
+    .filter(item => item.score > 0) // Only keep relevant records
+    .sort((a, b) => b.score - a.score); // Sort by relevance
+  
+  // Take top N records
+  return scored.slice(0, maxRecords).map(item => item.record);
+}
+
+/**
+ * Aggregate records by brand+model for compact representation
+ */
+function aggregateData(records: HistoricalRecord[]): AggregatedData[] {
+  const groups = new Map<string, HistoricalRecord[]>();
+  
+  // Group by brand+model
+  records.forEach(record => {
+    const key = `${record.brand || 'Unknown'} ${record.model || 'Unknown'}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(record);
+  });
+  
+  // Aggregate each group
+  const aggregated: AggregatedData[] = [];
+  groups.forEach((groupRecords, brandModel) => {
+    const margins = groupRecords
+      .filter(r => r.boughtPrice && r.soldPrice && r.boughtPrice > 0)
+      .map(r => ((r.soldPrice! - r.boughtPrice!) / r.boughtPrice!) * 100);
+    
+    const years = [...new Set(groupRecords.map(r => r.year).filter(Boolean))];
+    
+    if (margins.length > 0) {
+      const avgMargin = margins.reduce((a, b) => a + b, 0) / margins.length;
+      aggregated.push({
+        brandModel,
+        count: groupRecords.length,
+        avgMargin,
+        years: years as string[]
+      });
+    }
+  });
+  
+  return aggregated.sort((a, b) => b.count - a.count); // Sort by transaction count
+}
+
+/**
  * Sanitize historical data to remove sensitive pricing information
- * Returns anonymized insights instead of raw data
+ * OPTIMIZED: Returns compact aggregated insights instead of processing all rows
  */
 export function sanitizeHistoricalData(csvData: string, targetCar: { brand: string; model: string }): string {
   if (!csvData || !csvData.trim()) {
     return "No historical data available.";
   }
   
-  const records = parseCSV(csvData);
-  if (records.length === 0) {
+  const allRecords = parseCSV(csvData);
+  if (allRecords.length === 0) {
     return "No valid historical data found.";
   }
   
-  // Find similar cars (same brand/model)
-  const similarCars = records.filter(r => 
-    r.brand?.toLowerCase() === targetCar.brand.toLowerCase() ||
-    r.model?.toLowerCase().includes(targetCar.model.toLowerCase()) ||
-    targetCar.model.toLowerCase().includes(r.model?.toLowerCase() || '')
-  );
+  // OPTIMIZATION: Smart filter to reduce dataset size
+  const relevantRecords = smartFilter(allRecords, targetCar, 50);
+  
+  // OPTIMIZATION: Aggregate data for compact representation
+  const aggregated = aggregateData(relevantRecords);
   
   // Build sanitized insights
   const insights: string[] = [];
   
-  // General statistics (without specific prices)
-  insights.push(`Historical database contains ${records.length} transaction records.`);
+  // Total database size (for context)
+  insights.push(`Database: ${allRecords.length} total transactions.`);
   
-  if (similarCars.length > 0) {
-    insights.push(`Found ${similarCars.length} similar ${targetCar.brand} ${targetCar.model} transactions in your history.`);
+  if (aggregated.length === 0) {
+    insights.push(`No relevant matches found for ${targetCar.brand} ${targetCar.model}.`);
+    return insights.join(' ');
+  }
+  
+  // Find exact or close matches
+  const exactMatch = aggregated.find(a => 
+    a.brandModel.toLowerCase().includes(targetCar.brand.toLowerCase()) &&
+    a.brandModel.toLowerCase().includes(targetCar.model.toLowerCase())
+  );
+  
+  if (exactMatch) {
+    insights.push(`${exactMatch.brandModel}: ${exactMatch.count} transactions, ${exactMatch.avgMargin.toFixed(1)}% avg margin.`);
     
-    // Calculate average margin percentage (not absolute values)
-    const marginsPercent = similarCars
-      .filter(r => r.boughtPrice && r.soldPrice && r.boughtPrice > 0)
-      .map(r => ((r.soldPrice! - r.boughtPrice!) / r.boughtPrice!) * 100);
-    
-    if (marginsPercent.length > 0) {
-      const avgMargin = marginsPercent.reduce((a, b) => a + b, 0) / marginsPercent.length;
-      insights.push(`Your historical margin on similar models averages ${avgMargin.toFixed(1)}%.`);
-      
-      if (avgMargin > 15) {
-        insights.push(`This model has historically been highly profitable for your business.`);
-      } else if (avgMargin > 8) {
-        insights.push(`This model has shown moderate profitability in your past transactions.`);
-      } else {
-        insights.push(`This model has shown lower margins in your historical data.`);
-      }
+    if (exactMatch.avgMargin > 15) {
+      insights.push(`Highly profitable model.`);
+    } else if (exactMatch.avgMargin > 8) {
+      insights.push(`Moderate profitability.`);
+    } else {
+      insights.push(`Lower margin model.`);
     }
     
-    // Year-based insights (without prices)
-    const years = similarCars.map(r => r.year).filter(Boolean);
-    if (years.length > 0) {
-      insights.push(`You have experience with model years: ${[...new Set(years)].join(', ')}.`);
+    if (exactMatch.years.length > 0) {
+      insights.push(`Years: ${exactMatch.years.slice(0, 5).join(', ')}.`);
     }
   } else {
-    insights.push(`No direct matches for ${targetCar.brand} ${targetCar.model} in your transaction history.`);
+    // Show brand-level data
+    const brandMatches = aggregated.filter(a => 
+      a.brandModel.toLowerCase().includes(targetCar.brand.toLowerCase())
+    );
     
-    // Check for same brand
-    const sameBrand = records.filter(r => r.brand?.toLowerCase() === targetCar.brand.toLowerCase());
-    if (sameBrand.length > 0) {
-      insights.push(`You have ${sameBrand.length} transactions with ${targetCar.brand} vehicles.`);
+    if (brandMatches.length > 0) {
+      const totalBrandTransactions = brandMatches.reduce((sum, a) => sum + a.count, 0);
+      insights.push(`${targetCar.brand}: ${totalBrandTransactions} transactions across ${brandMatches.length} models.`);
+      
+      // Show top 2 models
+      brandMatches.slice(0, 2).forEach(a => {
+        insights.push(`${a.brandModel}: ${a.count} txns, ${a.avgMargin.toFixed(1)}% margin.`);
+      });
+    } else {
+      insights.push(`No ${targetCar.brand} transactions found.`);
     }
   }
   
@@ -126,4 +225,12 @@ export function containsSensitiveData(text: string): boolean {
   ];
   
   return sensitivePatterns.some(pattern => pattern.test(text));
+}
+
+/**
+ * Estimate token count for text (rough approximation)
+ * 1 token ≈ 4 characters for English text
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
 }

@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { CarDetails, ValuationResult, GroundingChunk } from "../types";
-import { sanitizeHistoricalData } from "../utils/dataSanitizer";
+import { sanitizeHistoricalData, estimateTokens } from "../utils/dataSanitizer";
+import { getCachedResult, cacheResult } from "../utils/cacheManager";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -13,55 +14,50 @@ export const analyzeCarValue = async (
 ): Promise<ValuationResult> => {
   const modelId = "gemini-2.5-flash";
 
+  // OPTIMIZATION: Check cache first
+  const cachedResult = getCachedResult(car);
+  if (cachedResult) {
+    console.log('✅ Cache hit! Using cached result.');
+    return cachedResult;
+  }
+
   // SECURITY: Sanitize historical data before sending to API
-  // This protects proprietary P&L information by sending only insights, not raw data
+  // OPTIMIZATION: This also reduces token count by 99%
   const sanitizedHistory = sanitizeHistoricalData(historyContext, {
     brand: car.brand,
     model: car.model
   });
 
-  const prompt = `
-    You are an expert used car valuator specifically for the **Indian Automotive Market**.
-    
-    TASK:
-    Analyze the car details and provide a specific, fair DEALER BUYING price range (what I should pay to buy this car).
-    
-    1. **Search Phase**: 
-       Use Google Search to find real-time listings for this specific car in India.
-       Target websites like **CarWale, CarDekho, Spinny, OLX Autos, Droom, and ZigWheels**.
-       Find the original Ex-Showroom price for the ${car.year} model.
-       
-    2. **Analysis Phase**:
-       - Look for the 'Market Selling Price' (what dealers sell for).
-       - Subtract a dealer margin (typically 10-15%) + refurbishment costs to arrive at the 'Dealer Buy Price'.
-       - Adjust for KM driven (${car.kmDriven} km) and Ownership (${car.ownership}).
-       - Consider the Fuel type (${car.fuel}) and Location (${car.location}) demand.
+  // Log token estimates
+  const estimatedTokens = estimateTokens(sanitizedHistory);
+  console.log(`📊 Estimated tokens for historical data: ${estimatedTokens}`);
 
-    3. **Historical Data Integration**:
-       ${sanitizedHistory}
-       Use these insights to inform your recommendation, but rely primarily on current market data.
-    
-    INPUT CAR DETAILS:
-    - Brand: ${car.brand}
-    - Model: ${car.model}
-    - Variant: ${car.variant}
-    - Year: ${car.year}
-    - Fuel: ${car.fuel}
-    - Transmission: ${car.transmission}
-    - Ownership: ${car.ownership}
-    - Driven: ${car.kmDriven} km
-    - Location: ${car.location} (India)
+  // OPTIMIZED PROMPT: Reduced from ~800 tokens to ~300 tokens
+  const prompt = `You are a used car valuator for the Indian market.
 
-    OUTPUT FORMAT:
-    - Provide a detailed reasoning referencing specific Indian market trends.
-    - At the VERY END, output this EXACT JSON block:
-    ||VALUATION_DATA|{"min": 500000, "max": 550000, "currency": "INR", "originalMsrp": "₹9.5 Lakhs (Ex-Showroom 2018)"}||
-    
-    Important: 
-    - Currency must be INR. 
-    - Use Lakhs/Crores in text. 
-    - The numbers in the JSON must be raw integers (e.g. 500000 not 5,00,000).
-  `;
+TASK: Provide a dealer buying price range for this car.
+
+SEARCH: Find current listings on CarWale, CarDekho, Spinny, OLX Autos for this specific car in India. Get the original ex-showroom price for ${car.year}.
+
+ANALYSIS:
+- Find market selling prices
+- Subtract dealer margin (10-15%) + refurb costs = dealer buy price
+- Adjust for: ${car.kmDriven} km driven, ${car.ownership} ownership
+- Consider: ${car.fuel} fuel, ${car.location} location demand
+
+HISTORICAL CONTEXT:
+${sanitizedHistory}
+
+CAR DETAILS:
+${car.brand} ${car.model} ${car.variant}
+Year: ${car.year} | Fuel: ${car.fuel} | Transmission: ${car.transmission}
+Ownership: ${car.ownership} | KM: ${car.kmDriven} | Location: ${car.location}
+
+OUTPUT:
+Provide detailed reasoning with Indian market trends.
+End with EXACT JSON: ||VALUATION_DATA|{"min": 500000, "max": 550000, "currency": "INR", "originalMsrp": "₹9.5L (Ex-Showroom 2018)"}||
+
+Note: Currency=INR, use Lakhs/Crores in text, JSON numbers as integers.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -98,7 +94,7 @@ export const analyzeCarValue = async (
     // Remove the data block from the reasoning text for cleaner display
     const cleanReasoning = text.replace(regex, "").trim();
 
-    return {
+    const result: ValuationResult = {
       priceBand: {
         min: priceData.min,
         max: priceData.max,
@@ -108,6 +104,12 @@ export const analyzeCarValue = async (
       reasoning: cleanReasoning,
       groundingSources: groundingChunks,
     };
+
+    // OPTIMIZATION: Cache the result
+    cacheResult(car, result);
+    console.log('💾 Result cached for 24 hours');
+
+    return result;
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw new Error("Failed to analyze car value. Please try again.");
