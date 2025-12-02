@@ -61,8 +61,12 @@ Year: ${car.year} | Fuel: ${car.fuel} | Transmission: ${car.transmission}
 Ownership: ${car.ownership} | KM: ${car.kmDriven} | Location: ${car.location}
 
 OUTPUT:
-- **Start by listing the past transactions** provided above (if any). e.g. "We bought a similar 2018 model on [Date] with [X]% margin."
-- Keep the reasoning SHORT and DIRECT. Bullet points only. No long paragraphs.
+- **Start by listing the past transactions** provided above. Copy the details exactly (Date, Model, Price, Margin).
+- **Valuation Reasoning**:
+  - Use SHORT bullet points only.
+  - MAX 10 words per bullet.
+  - NO paragraphs. NO fluff.
+  - Focus purely on the math: "Market price X. Margin Y. Refurb Z. Final Price W."
 - End with EXACT JSON: ||VALUATION_DATA|{"min": 400000, "max": 425000, "currency": "INR", "originalMsrp": "₹9.5L (Ex-Showroom 2018)"}||
 
 Note: Currency=INR, use Lakhs/Crores in text, JSON numbers as integers.`;

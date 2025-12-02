@@ -7,6 +7,7 @@
 interface HistoricalRecord {
   brand?: string;
   model?: string;
+  variant?: string;
   year?: string;
   boughtPrice?: number;
   soldPrice?: number;
@@ -40,6 +41,7 @@ function parseCSV(csvData: string): HistoricalRecord[] {
       const value = values[index];
       if (header.includes('brand')) record.brand = value;
       if (header.includes('model')) record.model = value;
+      if (header.includes('variant')) record.variant = value;
       if (header.includes('year')) record.year = value;
       if (header.includes('date')) record.date = value;
       if (header.includes('bought') || header.includes('purchase')) {
@@ -193,9 +195,16 @@ export function sanitizeHistoricalData(
     recentTxns.forEach(txn => {
       if (txn.boughtPrice && txn.soldPrice) {
         const margin = ((txn.soldPrice - txn.boughtPrice) / txn.boughtPrice) * 100;
-        const dateStr = txn.date ? ` on ${txn.date}` : '';
-        const yearStr = txn.year ? ` (${txn.year} model)` : '';
-        insights.push(`- Bought${dateStr}${yearStr}: Net Margin ${margin.toFixed(1)}%`);
+        const dateStr = txn.date ? `Date: ${txn.date}` : 'Date: N/A';
+        const modelStr = `${txn.brand} ${txn.model}`;
+        const variantStr = txn.variant ? ` ${txn.variant}` : '';
+        const yearStr = txn.year ? ` (${txn.year})` : '';
+        
+        // Format prices in Lakhs
+        const buyLakhs = (txn.boughtPrice / 100000).toFixed(2);
+        const sellLakhs = (txn.soldPrice / 100000).toFixed(2);
+        
+        insights.push(`- ${dateStr} | ${modelStr}${variantStr}${yearStr} | Bought: ₹${buyLakhs}L | Sold: ₹${sellLakhs}L | Margin: ${margin.toFixed(1)}%`);
       }
     });
 
