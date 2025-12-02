@@ -11,6 +11,7 @@ interface HistoricalRecord {
   year?: string;
   boughtPrice?: number;
   soldPrice?: number;
+  netMargin?: number;
   date?: string;
 }
 
@@ -49,6 +50,12 @@ function parseCSV(csvData: string): HistoricalRecord[] {
       }
       if (header.includes('sold') || header.includes('sale')) {
         record.soldPrice = parseFloat(value);
+      }
+      // Parse Net_Margin_After_Incentive
+      if (header.includes('net_margin') || header.includes('incentive')) {
+        // Handle percentage strings if present (e.g. "12%")
+        const cleanValue = value.replace('%', '');
+        record.netMargin = parseFloat(cleanValue);
       }
     });
     
@@ -194,7 +201,12 @@ export function sanitizeHistoricalData(
     
     recentTxns.forEach(txn => {
       if (txn.boughtPrice && txn.soldPrice) {
-        const margin = ((txn.soldPrice - txn.boughtPrice) / txn.boughtPrice) * 100;
+        // Use explicit net margin if available, otherwise calculate it
+        let margin = txn.netMargin;
+        if (margin === undefined || isNaN(margin)) {
+          margin = ((txn.soldPrice - txn.boughtPrice) / txn.boughtPrice) * 100;
+        }
+        
         const dateStr = txn.date ? `Date: ${txn.date}` : 'Date: N/A';
         const modelStr = `${txn.brand} ${txn.model}`;
         const variantStr = txn.variant ? ` ${txn.variant}` : '';
@@ -210,8 +222,12 @@ export function sanitizeHistoricalData(
 
     // Calculate average margin for UI display
     const margins = exactMatches
-      .filter(r => r.boughtPrice && r.soldPrice)
-      .map(r => ((r.soldPrice! - r.boughtPrice!) / r.boughtPrice!) * 100);
+      .map(r => {
+        if (r.netMargin !== undefined && !isNaN(r.netMargin)) return r.netMargin;
+        if (r.boughtPrice && r.soldPrice) return ((r.soldPrice - r.boughtPrice) / r.boughtPrice) * 100;
+        return null;
+      })
+      .filter(m => m !== null) as number[];
       
     if (margins.length > 0) {
       const avgMargin = margins.reduce((a, b) => a + b, 0) / margins.length;
