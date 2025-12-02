@@ -52,6 +52,79 @@ const ValuationResultView: React.FC<ValuationResultProps> = ({ result }) => {
         </div>
       </div>
 
+      {/* Historical Margin Indicator */}
+      {result.historicalMargin && (
+        <div className={`rounded-2xl p-5 shadow-sm border-2 ${
+          result.historicalMargin.percentage > 15 
+            ? 'bg-green-50 border-green-200' 
+            : result.historicalMargin.percentage > 8
+            ? 'bg-yellow-50 border-yellow-200'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <h4 className={`text-sm font-semibold uppercase tracking-wide mb-1 ${
+                result.historicalMargin.percentage > 15 
+                  ? 'text-green-700' 
+                  : result.historicalMargin.percentage > 8
+                  ? 'text-yellow-700'
+                  : 'text-red-700'
+              }`}>
+                Historical Profit Margin
+              </h4>
+              <p className={`text-xs mb-2 ${
+                result.historicalMargin.percentage > 15 
+                  ? 'text-green-600' 
+                  : result.historicalMargin.percentage > 8
+                  ? 'text-yellow-600'
+                  : 'text-red-600'
+              }`}>
+                {result.historicalMargin.description}
+              </p>
+            </div>
+            <div className={`text-right px-4 py-2 rounded-xl ${
+              result.historicalMargin.percentage > 15 
+                ? 'bg-green-100' 
+                : result.historicalMargin.percentage > 8
+                ? 'bg-yellow-100'
+                : 'bg-red-100'
+            }`}>
+              <div className={`text-3xl font-bold ${
+                result.historicalMargin.percentage > 15 
+                  ? 'text-green-700' 
+                  : result.historicalMargin.percentage > 8
+                  ? 'text-yellow-700'
+                  : 'text-red-700'
+              }`}>
+                {result.historicalMargin.percentage.toFixed(1)}%
+              </div>
+              <div className={`text-xs font-medium ${
+                result.historicalMargin.percentage > 15 
+                  ? 'text-green-600' 
+                  : result.historicalMargin.percentage > 8
+                  ? 'text-yellow-600'
+                  : 'text-red-600'
+              }`}>
+                Net Margin
+              </div>
+            </div>
+          </div>
+          <div className={`mt-3 pt-3 border-t text-xs ${
+            result.historicalMargin.percentage > 15 
+              ? 'border-green-200 text-green-700' 
+              : result.historicalMargin.percentage > 8
+              ? 'border-yellow-200 text-yellow-700'
+              : 'border-red-200 text-red-700'
+          }`}>
+            {result.historicalMargin.percentage > 15 
+              ? '✓ Good margin. Room for competitive offers while maintaining profit.'
+              : result.historicalMargin.percentage > 8
+              ? '⚠ Moderate margin. Price carefully to ensure profitability.'
+              : '⚠ Low margin. Be very conservative with offers.'}
+          </div>
+        </div>
+      )}
+
       {/* AI Reasoning */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-center space-x-2 mb-4">

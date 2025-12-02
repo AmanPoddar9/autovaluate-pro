@@ -41,6 +41,10 @@ export interface ValuationResult {
   originalMsrp?: string;
   reasoning: string;
   groundingSources: GroundingChunk[];
+  historicalMargin?: {
+    percentage: number;
+    description: string;
+  };
 }
 
 export interface SalesHistoryItem {

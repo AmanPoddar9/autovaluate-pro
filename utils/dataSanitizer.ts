@@ -142,14 +142,23 @@ function aggregateData(records: HistoricalRecord[]): AggregatedData[] {
  * Sanitize historical data to remove sensitive pricing information
  * OPTIMIZED: Returns compact aggregated insights instead of processing all rows
  */
-export function sanitizeHistoricalData(csvData: string, targetCar: { brand: string; model: string }): string {
+export function sanitizeHistoricalData(
+  csvData: string, 
+  targetCar: { brand: string; model: string }
+): { insights: string; marginData: { percentage: number; description: string } | null } {
   if (!csvData || !csvData.trim()) {
-    return "No historical data available.";
+    return { 
+      insights: "No historical data available.",
+      marginData: null
+    };
   }
   
   const allRecords = parseCSV(csvData);
   if (allRecords.length === 0) {
-    return "No valid historical data found.";
+    return { 
+      insights: "No valid historical data found.",
+      marginData: null
+    };
   }
   
   // OPTIMIZATION: Smart filter to reduce dataset size
@@ -160,13 +169,14 @@ export function sanitizeHistoricalData(csvData: string, targetCar: { brand: stri
   
   // Build sanitized insights
   const insights: string[] = [];
+  let marginData: { percentage: number; description: string } | null = null;
   
   // Total database size (for context)
   insights.push(`Database: ${allRecords.length} total transactions.`);
   
   if (aggregated.length === 0) {
     insights.push(`No relevant matches found for ${targetCar.brand} ${targetCar.model}.`);
-    return insights.join(' ');
+    return { insights: insights.join(' '), marginData: null };
   }
   
   // Find exact or close matches
@@ -177,6 +187,12 @@ export function sanitizeHistoricalData(csvData: string, targetCar: { brand: stri
   
   if (exactMatch) {
     insights.push(`${exactMatch.brandModel}: ${exactMatch.count} transactions, ${exactMatch.avgMargin.toFixed(1)}% avg margin.`);
+    
+    // Store margin data for display in UI
+    marginData = {
+      percentage: exactMatch.avgMargin,
+      description: `${exactMatch.count} similar ${exactMatch.brandModel} transactions`
+    };
     
     if (exactMatch.avgMargin > 15) {
       insights.push(`Historically profitable, but ensure buy price allows for >15% margin.`);
@@ -199,6 +215,15 @@ export function sanitizeHistoricalData(csvData: string, targetCar: { brand: stri
       const totalBrandTransactions = brandMatches.reduce((sum, a) => sum + a.count, 0);
       insights.push(`${targetCar.brand}: ${totalBrandTransactions} transactions across ${brandMatches.length} models.`);
       
+      // Calculate average margin across brand
+      const totalMargin = brandMatches.reduce((sum, a) => sum + (a.avgMargin * a.count), 0);
+      const avgBrandMargin = totalMargin / totalBrandTransactions;
+      
+      marginData = {
+        percentage: avgBrandMargin,
+        description: `${totalBrandTransactions} ${targetCar.brand} transactions (brand average)`
+      };
+      
       // Show top 2 models
       brandMatches.slice(0, 2).forEach(a => {
         insights.push(`${a.brandModel}: ${a.count} txns, ${a.avgMargin.toFixed(1)}% margin.`);
@@ -208,7 +233,7 @@ export function sanitizeHistoricalData(csvData: string, targetCar: { brand: stri
     }
   }
   
-  return insights.join(' ');
+  return { insights: insights.join(' '), marginData };
 }
 
 /**

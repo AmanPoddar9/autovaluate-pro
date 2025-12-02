@@ -23,13 +23,13 @@ export const analyzeCarValue = async (
 
   // SECURITY: Sanitize historical data before sending to API
   // OPTIMIZATION: This also reduces token count by 99%
-  const sanitizedHistory = sanitizeHistoricalData(historyContext, {
+  const sanitizedData = sanitizeHistoricalData(historyContext, {
     brand: car.brand,
     model: car.model
   });
 
   // Log token estimates
-  const estimatedTokens = estimateTokens(sanitizedHistory);
+  const estimatedTokens = estimateTokens(sanitizedData.insights);
   console.log(`📊 Estimated tokens for historical data: ${estimatedTokens}`);
 
   // OPTIMIZED PROMPT: Reduced tokens + STRICTER VALUATION LOGIC
@@ -52,7 +52,7 @@ VALUATION FORMULA (Apply Strictly):
 5. DEDUCT Mileage Penalty: If >15k km/year, deduct extra.
 
 HISTORICAL CONTEXT:
-${sanitizedHistory}
+${sanitizedData.insights}
 
 CAR DETAILS:
 ${car.brand} ${car.model} ${car.variant}
@@ -110,6 +110,7 @@ Note: Currency=INR, use Lakhs/Crores in text, JSON numbers as integers.`;
       originalMsrp: priceData.originalMsrp,
       reasoning: cleanReasoning,
       groundingSources: groundingChunks,
+      historicalMargin: sanitizedData.marginData || undefined,
     };
 
     // OPTIMIZATION: Cache the result
