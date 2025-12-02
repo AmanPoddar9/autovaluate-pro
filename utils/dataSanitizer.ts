@@ -10,6 +10,7 @@ interface HistoricalRecord {
   year?: string;
   boughtPrice?: number;
   soldPrice?: number;
+  date?: string;
 }
 
 interface AggregatedData {
@@ -40,6 +41,7 @@ function parseCSV(csvData: string): HistoricalRecord[] {
       if (header.includes('brand')) record.brand = value;
       if (header.includes('model')) record.model = value;
       if (header.includes('year')) record.year = value;
+      if (header.includes('date')) record.date = value;
       if (header.includes('bought') || header.includes('purchase')) {
         record.boughtPrice = parseFloat(value);
       }
@@ -142,6 +144,10 @@ function aggregateData(records: HistoricalRecord[]): AggregatedData[] {
  * Sanitize historical data to remove sensitive pricing information
  * OPTIMIZED: Returns compact aggregated insights instead of processing all rows
  */
+/**
+ * Sanitize historical data to remove sensitive pricing information
+ * OPTIMIZED: Returns compact aggregated insights instead of processing all rows
+ */
 export function sanitizeHistoricalData(
   csvData: string, 
   targetCar: { brand: string; model: string }
@@ -171,51 +177,52 @@ export function sanitizeHistoricalData(
   const insights: string[] = [];
   let marginData: { percentage: number; description: string } | null = null;
   
-  // Total database size (for context)
-  insights.push(`Database: ${allRecords.length} total transactions.`);
-  
-  if (aggregated.length === 0) {
-    insights.push(`No relevant matches found for ${targetCar.brand} ${targetCar.model}.`);
-    return { insights: insights.join(' '), marginData: null };
-  }
-  
-  // Find exact or close matches
-  const exactMatch = aggregated.find(a => 
-    a.brandModel.toLowerCase().includes(targetCar.brand.toLowerCase()) &&
-    a.brandModel.toLowerCase().includes(targetCar.model.toLowerCase())
+  // 1. LIST SPECIFIC TRANSACTIONS (Top Priority)
+  // Find exact matches for this model
+  const exactMatches = relevantRecords.filter(r => 
+    r.brand?.toLowerCase() === targetCar.brand.toLowerCase() &&
+    r.model?.toLowerCase() === targetCar.model.toLowerCase()
   );
-  
-  if (exactMatch) {
-    insights.push(`${exactMatch.brandModel}: ${exactMatch.count} transactions, ${exactMatch.avgMargin.toFixed(1)}% avg margin.`);
+
+  if (exactMatches.length > 0) {
+    insights.push(`*** PRIORITY: YOUR PAST TRANSACTIONS FOR ${targetCar.brand.toUpperCase()} ${targetCar.model.toUpperCase()} ***`);
     
-    // Store margin data for display in UI
-    marginData = {
-      percentage: exactMatch.avgMargin,
-      description: `${exactMatch.count} similar ${exactMatch.brandModel} transactions`
-    };
+    // Sort by date (most recent first) if available, or just take first few
+    const recentTxns = exactMatches.slice(0, 5);
     
-    if (exactMatch.avgMargin > 15) {
-      insights.push(`Historically profitable, but ensure buy price allows for >15% margin.`);
-    } else if (exactMatch.avgMargin > 8) {
-      insights.push(`Moderate past profitability. Bid conservatively to improve margins.`);
-    } else {
-      insights.push(`Low margin model historically. STRICT pricing required.`);
-    }
-    
-    if (exactMatch.years.length > 0) {
-      insights.push(`Years: ${exactMatch.years.slice(0, 5).join(', ')}.`);
+    recentTxns.forEach(txn => {
+      if (txn.boughtPrice && txn.soldPrice) {
+        const margin = ((txn.soldPrice - txn.boughtPrice) / txn.boughtPrice) * 100;
+        const dateStr = txn.date ? ` on ${txn.date}` : '';
+        const yearStr = txn.year ? ` (${txn.year} model)` : '';
+        insights.push(`- Bought${dateStr}${yearStr}: Net Margin ${margin.toFixed(1)}%`);
+      }
+    });
+
+    // Calculate average margin for UI display
+    const margins = exactMatches
+      .filter(r => r.boughtPrice && r.soldPrice)
+      .map(r => ((r.soldPrice! - r.boughtPrice!) / r.boughtPrice!) * 100);
+      
+    if (margins.length > 0) {
+      const avgMargin = margins.reduce((a, b) => a + b, 0) / margins.length;
+      insights.push(`AVERAGE MARGIN for this model: ${avgMargin.toFixed(1)}% over ${margins.length} transactions.`);
+      
+      marginData = {
+        percentage: avgMargin,
+        description: `${margins.length} similar ${targetCar.brand} ${targetCar.model} transactions`
+      };
     }
   } else {
-    // Show brand-level data
+    insights.push(`No exact past transactions for ${targetCar.brand} ${targetCar.model}.`);
+    
+    // Fallback to brand level
     const brandMatches = aggregated.filter(a => 
       a.brandModel.toLowerCase().includes(targetCar.brand.toLowerCase())
     );
     
     if (brandMatches.length > 0) {
       const totalBrandTransactions = brandMatches.reduce((sum, a) => sum + a.count, 0);
-      insights.push(`${targetCar.brand}: ${totalBrandTransactions} transactions across ${brandMatches.length} models.`);
-      
-      // Calculate average margin across brand
       const totalMargin = brandMatches.reduce((sum, a) => sum + (a.avgMargin * a.count), 0);
       const avgBrandMargin = totalMargin / totalBrandTransactions;
       
@@ -223,17 +230,13 @@ export function sanitizeHistoricalData(
         percentage: avgBrandMargin,
         description: `${totalBrandTransactions} ${targetCar.brand} transactions (brand average)`
       };
-      
-      // Show top 2 models
-      brandMatches.slice(0, 2).forEach(a => {
-        insights.push(`${a.brandModel}: ${a.count} txns, ${a.avgMargin.toFixed(1)}% margin.`);
-      });
-    } else {
-      insights.push(`No ${targetCar.brand} transactions found.`);
     }
   }
+
+  // 2. GENERAL DATABASE STATS
+  insights.push(`\nDatabase Context: ${allRecords.length} total records.`);
   
-  return { insights: insights.join(' '), marginData };
+  return { insights: insights.join('\n'), marginData };
 }
 
 /**

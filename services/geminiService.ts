@@ -38,12 +38,16 @@ export const analyzeCarValue = async (
 TASK: Determine the SAFE DEALER BUYING PRICE. Your goal is to protect the dealer's profit.
 It is better to quote TOO LOW than too high.
 
-SEARCH STRATEGY:
-1. Find the LOWEST listed prices for this car on CarWale, CarDekho, OLX.
-2. Assume actual transaction prices are 5-10% LOWER than online listings.
+PRIORITY 1: YOUR BUSINESS HISTORY (Most Important)
+${sanitizedData.insights}
+
+PRIORITY 2: MARKET SEARCH (Use with CAUTION)
+1. Find listings on CarWale, CarDekho, OLX.
+2. WARNING: Online asking prices are OFTEN INFLATED/UNREALISTIC. Do NOT anchor to them.
+3. Assume actual transaction prices are 10-15% LOWER than online listings.
 
 VALUATION FORMULA (Apply Strictly):
-1. Start with the estimated Market Transaction Price (not asking price).
+1. Start with the estimated Market Transaction Price (heavily discounted from online ads).
 2. DEDUCT Dealer Margin: MINIMUM 15-20% (for profit + risk).
 3. DEDUCT Refurbishment: MINIMUM ₹15,000 - ₹25,000 (tires, paint, service).
 4. DEDUCT Ownership Penalty:
@@ -51,17 +55,14 @@ VALUATION FORMULA (Apply Strictly):
    - 3rd Owner: -20%
 5. DEDUCT Mileage Penalty: If >15k km/year, deduct extra.
 
-HISTORICAL CONTEXT:
-${sanitizedData.insights}
-
 CAR DETAILS:
 ${car.brand} ${car.model} ${car.variant}
 Year: ${car.year} | Fuel: ${car.fuel} | Transmission: ${car.transmission}
 Ownership: ${car.ownership} | KM: ${car.kmDriven} | Location: ${car.location}
 
 OUTPUT:
-- Explain your calculation: "Listing price ₹X, minus 10% negotiation = ₹Y. Minus 15% margin = ₹Z. Minus ₹20k work..."
-- Be direct and conservative.
+- **Start by listing the past transactions** provided above (if any). e.g. "We bought a similar 2018 model on [Date] with [X]% margin."
+- Keep the reasoning SHORT and DIRECT. Bullet points only. No long paragraphs.
 - End with EXACT JSON: ||VALUATION_DATA|{"min": 400000, "max": 425000, "currency": "INR", "originalMsrp": "₹9.5L (Ex-Showroom 2018)"}||
 
 Note: Currency=INR, use Lakhs/Crores in text, JSON numbers as integers.`;
